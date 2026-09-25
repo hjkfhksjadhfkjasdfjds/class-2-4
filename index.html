@@ -121,6 +121,11 @@
         <!-- MAIN CONTENT AREA -->
         <main class="flex-1 px-4 py-4 space-y-4">
 
+            <div id="loadingState" class="bg-white rounded-2xl p-8 text-center border border-slate-200 shadow-sm">
+                <i class="fa-solid fa-spinner animate-spin text-indigo-600 text-xl"></i>
+                <p class="text-xs text-slate-500 font-semibold mt-3">과제 목록을 불러오는 중...</p>
+            </div>
+
             <!-- MOBILE SUMMARY BANNER CARD -->
             <div class="bg-slate-900 text-white rounded-2xl p-4 shadow-lg relative overflow-hidden">
                 <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-indigo-500/20 rounded-full blur-2xl pointer-events-none"></div>
@@ -474,9 +479,11 @@
                             id: doc.id,
                             ...doc.data()
                         }));
+                        document.getElementById('loadingState')?.classList.add('hidden');
                         renderAssignments();
                     }, (error) => {
                         console.warn("Firestore access error, using local fallback:", error);
+                        document.getElementById('loadingState')?.classList.add('hidden');
                         loadFromLocalFallback();
                     });
 
@@ -491,6 +498,7 @@
         }
 
         function loadFromLocalFallback() {
+            document.getElementById('loadingState')?.classList.add('hidden');
             const saved = localStorage.getItem('local_2_4_assignments');
             if (saved) {
                 try { assignments = JSON.parse(saved); } 
@@ -757,12 +765,6 @@
                     ${itemImages.length ? `
                         <div class="grid grid-cols-2 gap-2 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 p-1 cursor-pointer" onclick="openImageViewer('${item.id}')">
                             ${itemImages.map((src, index) => `<img src="${src}" alt="유인물 ${index + 1}" class="w-full h-36 object-cover rounded-lg">`).join('')}
-                            <div class="absolute inset-0 bg-slate-900/30 flex items-center justify-center opacity-90 transition">
-                                <span class="bg-slate-900/80 text-white text-[10px] font-bold px-2.5 py-1 rounded-full backdrop-blur-md flex items-center space-x-1">
-                                    <i class="fa-solid fa-magnifying-glass-plus"></i>
-                                    <span>유인물 크게 보기</span>
-                                </span>
-                            </div>
                         </div>
                     ` : ''}
 
