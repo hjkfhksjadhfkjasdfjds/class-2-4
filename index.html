@@ -260,12 +260,12 @@
                             <i class="fa-solid fa-camera text-indigo-500"></i>
                             <span id="imageInputLabelText">사진 촬영 또는 갤러리 선택</span>
                         </label>
-                        <input type="file" id="taskImageInput" accept="image/*" class="hidden" onchange="handleImageSelect(event)">
+                        <input type="file" id="taskImageInput" accept="image/*" multiple class="hidden" onchange="handleImageSelect(event)">
                     </div>
 
                     <!-- Image Preview Container -->
                     <div id="imagePreviewContainer" class="hidden mt-2 relative bg-slate-100 rounded-xl p-2 border border-slate-200 text-center">
-                        <img id="imagePreview" src="" alt="미리보기" class="max-h-36 mx-auto rounded-lg object-contain shadow-sm">
+                        <div id="imagePreview" class="grid grid-cols-3 gap-2"></div>
                         <button type="button" onclick="removeSelectedImage()" class="absolute top-3 right-3 bg-red-600 text-white w-7 h-7 rounded-full flex items-center justify-center shadow-md active:scale-95">
                             <i class="fa-solid fa-xmark text-xs"></i>
                         </button>
@@ -359,7 +359,7 @@
         let assignments = [];
         let currentFilter = 'ALL';
         let targetDeleteId = null;
-        let selectedBase64Image = null;
+        let selectedBase64Images = [];
         let myCheckedTaskIds = JSON.parse(localStorage.getItem('my_checked_tasks_2_4') || '[]');
         
         const className = '2학년 4반';
@@ -598,29 +598,39 @@
         }
 
         window.handleImageSelect = async function(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+            const files = Array.from(event.target.files || []);
+            if (!files.length) return;
 
             const labelText = document.getElementById('imageInputLabelText');
             labelText.textContent = '사진 압축 처리 중...';
 
             try {
-                selectedBase64Image = await compressImage(file, 800, 0.7);
-                document.getElementById('imagePreview').src = selectedBase64Image;
+                const images = await Promise.all(files.map(file => compressImage(file, 800, 0.7)));
+                selectedBase64Images = selectedBase64Images.concat(images);
+                document.getElementById('imagePreview').innerHTML = selectedBase64Images.map((src, index) => `
+                    <div class="relative"><img src="${src}" alt="미리보기 ${index + 1}" class="w-full h-24 rounded-lg object-cover shadow-sm">
+                    <button type="button" onclick="removeSelectedImage(${index})" class="absolute top-1 right-1 bg-red-600 text-white w-6 h-6 rounded-full">×</button></div>
+                `).join('');
                 document.getElementById('imagePreviewContainer').classList.remove('hidden');
-                labelText.textContent = '사진 변경하기';
+                labelText.textContent = '사진 추가하기';
             } catch (err) {
                 console.error("Image compression error:", err);
                 labelText.textContent = '사진 촬영 또는 갤러리 선택';
             }
         };
 
-        window.removeSelectedImage = function() {
-            selectedBase64Image = null;
+        window.removeSelectedImage = function(index = null) {
+            if (index !== null) selectedBase64Images.splice(index, 1);
+            else selectedBase64Images = [];
             document.getElementById('taskImageInput').value = '';
-            document.getElementById('imagePreview').src = '';
-            document.getElementById('imagePreviewContainer').classList.add('hidden');
-            document.getElementById('imageInputLabelText').textContent = '사진 촬영 또는 갤러리 선택';
+            document.getElementById('imagePreview').innerHTML = selectedBase64Images.map((src, i) => `
+                <div class="relative"><img src="${src}" alt="미리보기 ${i + 1}" class="w-full h-24 rounded-lg object-cover shadow-sm">
+                <button type="button" onclick="removeSelectedImage(${i})" class="absolute top-1 right-1 bg-red-600 text-white w-6 h-6 rounded-full">×</button></div>
+            `).join('');
+            if (!selectedBase64Images.length) {
+                document.getElementById('imagePreviewContainer').classList.add('hidden');
+                document.getElementById('imageInputLabelText').textContent = '사진 여러 장 선택';
+            }
         };
 
         function renderFilterTabs() {
@@ -707,6 +717,7 @@
             const dday = getDDayStatus(item.dueDate);
             const isChecked = myCheckedTaskIds.includes(item.id);
             const subjConfig = SUBJECT_CONFIG[item.subject] || { bg: 'bg-slate-100 text-slate-700' };
+            const itemImages = Array.isArray(item.imageData) ? item.imageData : (item.imageData ? [item.imageData] : []);
 
             return `
                 <div class="bg-white rounded-2xl p-4 border ${isChecked ? 'border-emerald-300 bg-emerald-50/20' : 'border-slate-200'} shadow-sm space-y-2.5 relative transition">
@@ -736,9 +747,9 @@
                         </p>
                     </div>
 
-                    ${item.imageData ? `
-                        <div class="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 group cursor-pointer" onclick="openImageViewer('${item.id}')">
-                            <img src="${item.imageData}" alt="유인물 미리보기" class="w-full h-36 object-cover transition transform group-active:scale-105">
+                    ${itemImages.length ? `
+                        <div class="grid grid-cols-2 gap-2 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 p-1 cursor-pointer" onclick="openImageViewer('${item.id}')">
+                            ${itemImages.map((src, index) => `<img src="${src}" alt="유인물 ${index + 1}" class="w-full h-36 object-cover rounded-lg">`).join('')}
                             <div class="absolute inset-0 bg-slate-900/30 flex items-center justify-center opacity-90 transition">
                                 <span class="bg-slate-900/80 text-white text-[10px] font-bold px-2.5 py-1 rounded-full backdrop-blur-md flex items-center space-x-1">
                                     <i class="fa-solid fa-magnifying-glass-plus"></i>
@@ -770,9 +781,10 @@
 
         window.openImageViewer = function(taskId) {
             const task = assignments.find(a => a.id === taskId);
-            if (!task || !task.imageData) return;
+            const images = task && (Array.isArray(task.imageData) ? task.imageData : (task.imageData ? [task.imageData] : []));
+            if (!images.length) return;
 
-            document.getElementById('imageViewerImg').src = task.imageData;
+            document.getElementById('imageViewerImg').src = images[0];
             const modal = document.getElementById('imageViewerModal');
             modal.classList.remove('hidden');
             setTimeout(() => modal.classList.remove('opacity-0'), 10);
@@ -853,7 +865,7 @@
                 description,
                 author,
                 priority,
-                imageData: selectedBase64Image || null,
+                imageData: selectedBase64Images,
                 createdAt: Date.now()
             };
 
